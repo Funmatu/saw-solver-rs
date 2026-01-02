@@ -119,7 +119,7 @@ saw-solver-rs/
 
 ### Dealing with N=20
 
-Calculating  is computationally expensive ( paths for , but exponentially more for ).
+Calculating $N=20$ is computationally expensive ($324,932$ paths for $N=12$, but exponentially more for $N=20$).
 
-* The Rust solver utilizes `u64` to prevent integer overflow (standard `u32` is insufficient for ).
-* The algorithm is single-threaded DFS. For extreme values (), a multi-threaded approach (using `rayon` to split the first level of recursion) would be required, but strictly sequential DFS is implemented here for maximum portability (WASM compatibility).
+* The Rust solver utilizes `u64` to prevent integer overflow (standard `u32` is insufficient for $N \ge 16$).
+* The algorithm is single-threaded DFS. For extreme values ($N > 25$), a multi-threaded approach (using `rayon` to split the first level of recursion) would be required, but strictly sequential DFS is implemented here for maximum portability (WASM compatibility).
