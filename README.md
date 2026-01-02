@@ -56,15 +56,32 @@ The `Cargo.toml` is configured with features to switch between targets:
     python tests/benchmark.py
     ```
 
-    **Example Output (Apple M1):**
-    ```text
-    N    | Target   | Result          | Time (ms)  | Status    
-    ------------------------------------------------------------
-    12   | Rust     | 324932          | 2.50       | OK        
-    12   | Python   | 324932          | 450.10     | (Match)   
-    ------------------------------------------------------------
-    ```
-    *Note: Rust is approximately 150x - 200x faster than the optimized Python version.*
+### **Benchmark Results**
+Comparison between Rust (Release Build) and Python implementations.
+The Rust implementation demonstrates extreme performance, solving $N=20$ (approx. 900 million paths) in sub-millisecond time.
+
+**Environment:**
+* OS: Linux (WSL2)
+* CPU: Release Build
+
+| N  | Target | Result      | Time (ms) | Status    | Speedup (approx.) |
+|:---|:-------|:------------|:----------|:----------|:------------------|
+| 3  | Rust   | 36          | 0.00      | OK        | -                 |
+| 3  | Python | 36          | 0.00      | Match     | -                 |
+| 10 | Rust   | 44,100      | 0.00      | OK        | -                 |
+| 10 | Python | 44,100      | 0.00      | Match     | -                 |
+| 12 | Rust   | 324,932     | 0.00      | OK        | **> ∞** |
+| 12 | Python | 324,932     | 6.27      | Match     | 1x                |
+| 13 | Rust   | 881,500     | 0.00      | OK        | **> ∞** |
+| 13 | Python | 881,500     | 22.23     | Match     | 1x                |
+| 15 | Rust   | 6,416,596   | 0.10      | OK        | **~1,900x** |
+| 15 | Python | 6,416,596   | 192.22    | Match     | 1x                |
+| 18 | Rust   | 124,658,732 | 0.10      | OK        | **~38,000x** |
+| 18 | Python | 124,658,732 | 3,791.63  | Match     | 1x                |
+| 20 | Rust   | 897,697,164 | 0.14      | OK        | **N/A** |
+| 20 | Python | (Skipped)   | -         | TOO LARGE | -                 |
+
+*Note: Time `0.00` indicates execution completed below the timer resolution.*
 
 ### B. WebAssembly (for Demo)
 **Requirements:** `wasm-pack`
