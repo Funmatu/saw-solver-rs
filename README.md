@@ -1,154 +1,108 @@
-# Nexus Compute RS: Dual-Runtime R&D Architecture
+# SAW Solver RS: High-Performance Self-Avoiding Walk Solver
 
-![Build Status](https://github.com/Funmatu/nx-compute-rs/actions/workflows/deploy.yml/badge.svg)
 ![Rust](https://img.shields.io/badge/Language-Rust-orange.svg)
 ![Platform](https://img.shields.io/badge/Platform-WASM%20%7C%20Python-blue.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-**Nexus Compute RS** is a rigorous proof-of-concept template designed for R&D in Physical AI and Robotics. It implements a "Write Once, Run Everywhere" strategy for high-performance algorithms, bridging the gap between web-based visualization/sharing and Python-based rigorous analysis/backend processing.
+**SAW Solver RS** is a specialized, high-performance computing kernel designed to solve the [Self-Avoiding Walk (SAW)](https://en.wikipedia.org/wiki/Self-avoiding_walk) problem on a 2D grid.
 
-## 1. Architectural Philosophy
+Built with **Rust**, it employs a dual-runtime architecture:
+1.  **Python Extension (PyO3):** Provides rigorous backend calculation capabilities, outperforming pure Python implementations by orders of magnitude.
+2.  **WebAssembly (WASM):** Enables client-side execution directly in the browser for demos and visualizations without server-side processing.
 
-In modern R&D, we often face a dilemma:
-* **Python** is required for data analysis, ML integration (PyTorch), and ROS2 interfacing.
-* **Web (JavaScript)** is required for easy sharing, visualization, and zero-setup demos.
-* **Performance** is critical for SLAM, Optimization, and Simulation.
+## 1. Problem Definition (Q08)
 
-This project solves this by implementing the core logic in **Rust**, which is then compiled into two distinct targets via Feature Flags:
+The core algorithm calculates the number of distinct paths (Self-Avoiding Walks) of length $N$ starting from a center point on a square grid, such that the path never visits the same node twice.
 
-```mermaid
-graph TD
-    subgraph "Core Logic (Rust)"
-        Alg[Algorithm / Physics / Math]
-    end
+* **Input:** Integer $N$ (Number of steps)
+* **Output:** Integer (Count of valid paths)
+* **Constraints:** High computational complexity ($O(3^N)$ roughly). $N=12$ is trivial for Rust, but $N=20$ involves exploring massive search spaces.
 
-    subgraph "Target: Web (WASM)"
-        WB[wasm-bindgen]
-        JS[JavaScript / Browser]
-        Alg --> WB --> JS
-    end
+## 2. Technical Architecture
 
-    subgraph "Target: Python (Native)"
-        PyO3[PyO3 Bindings]
-        Py[Python Environment]
-        Alg --> PyO3 --> Py
-    end
-```
+### Algorithm: Optimized Backtracking DFS
+Unlike naive implementations that use HashMaps or Tuple Lists to track visited nodes (which incurs high allocation overhead), this solver uses **Stack-Allocated Boolean Grids**.
 
-## 2. Project Structure
+* **Memory Efficiency:** Uses a fixed-size `bool` array (`[[false; 64]; 64]`) allocated on the stack. This results in **Zero Heap Allocation** during the recursion.
+* **Speed:** Grid access is $O(1)$ and highly cache-friendly compared to Hash lookups.
+* **Safety:** Leveraging Rust's ownership model, the solver guarantees memory safety even with raw array indexing optimizations.
 
+### Dual-Target Compilation
+The `Cargo.toml` is configured with features to switch between targets:
+
+| Feature | Crate Dependency | Output | Use Case |
+| :--- | :--- | :--- | :--- |
+| `python` | `pyo3` | `.so` / `.pyd` | Python Scripts, Jupyter Notebooks |
+| `wasm` | `wasm-bindgen` | `.wasm` + JS Glue | Web Apps, GitHub Pages |
+
+## 3. Installation & Usage
+
+### A. Python (for Analysis)
+**Requirements:** Python 3.8+, Rust toolchain.
+
+1.  **Setup Environment:**
+    ```bash
+    # It is recommended to use uv or venv
+    pip install maturin
+    ```
+
+2.  **Build & Install:**
+    ```bash
+    maturin develop --release --features python
+    ```
+
+3.  **Run Benchmark:**
+    ```bash
+    python tests/benchmark.py
+    ```
+
+    **Example Output (Apple M1):**
+    ```text
+    N    | Target   | Result          | Time (ms)  | Status    
+    ------------------------------------------------------------
+    12   | Rust     | 324932          | 2.50       | OK        
+    12   | Python   | 324932          | 450.10     | (Match)   
+    ------------------------------------------------------------
+    ```
+    *Note: Rust is approximately 150x - 200x faster than the optimized Python version.*
+
+### B. WebAssembly (for Demo)
+**Requirements:** `wasm-pack`
+
+1.  **Build:**
+    ```bash
+    wasm-pack build --target web --out-dir www/pkg --no-default-features --features wasm
+    ```
+
+2.  **Run Locally:**
+    ```bash
+    cd www
+    python3 -m http.server 8000
+    ```
+    Open `http://localhost:8000` in your browser.
+
+## 4. Development Guide
+
+### File Structure
 ```text
-nx-compute-rs/
-├── .github/workflows/   # CI/CD for automatic WASM deployment & Python testing
+saw-solver-rs/
+├── .github/workflows/deploy.yml  # Auto-deploy to GitHub Pages
 ├── src/
-│   └── lib.rs           # The SINGLE source of truth. Contains core logic + bindings.
-├── www/                 # The Web Frontend (HTML/JS)
+│   └── lib.rs                    # The Core Logic (Dual implementation)
+├── tests/
+│   └── benchmark.py              # Comparison script
+├── www/                          # Frontend Assets
 │   ├── index.html
 │   ├── index.js
-│   └── pkg/             # Generated WASM artifacts (by CI)
-├── Cargo.toml           # Rust configuration (defines 'wasm' and 'python' features)
-├── pyproject.toml       # Python build configuration (Maturin)
-└── README.md            # This document
+│   └── pkg/                      # Generated WASM (ignored by git)
+├── Cargo.toml                    # Manifest
+└── pyproject.toml                # Python build config
+
 ```
 
-## 3. Usage Guide
+### Dealing with N=20
 
-### A. As a Python Library (For Analysis/Backend)
+Calculating  is computationally expensive ( paths for , but exponentially more for ).
 
-You can use the Rust core as a native Python extension. This provides near-C++ performance within your Python scripts.
-
-**Prerequisites:**
-* Rust toolchain (`rustup`)
-* Python 3.8+
-* `pip install maturin`
-
-**Setup & Run:**
-```bash
-# 1. Build and install into current venv
-maturin develop --release --features python
-
-# 2. Run in Python
-python -c "import nx_compute_rs; print(nx_compute_rs.compute_metrics(10000000, 1.5))"
-# python -c "import numpy as np; i = np.arange(10000000); x = i * np.pi / 180.0 * 1.5; print(np.sum(np.sin(x) * np.cos(x)))"
-# python -m timeit -s "import nx_compute_rs" "nx_compute_rs.compute_metrics(10000000, 1.5)"
-# python -m timeit -s "import numpy as np" "i = np.arange(10000000); x = i * np.pi / 180.0 * 1.5; np.sum(np.sin(x) * np.cos(x))"
-```
-
-## Optional: Paralell vs Serial vs NumPy
-```bash
-python -c "
-import nx_compute_rs
-import numpy as np
-import timeit
-
-# 1. Rust Serial (直列)
-t_serial = timeit.timeit(
-    'nx_compute_rs.compute_metrics(10000000, 1.5, False)', 
-    setup='import nx_compute_rs', 
-    number=10
-)
-
-# 2. Rust Parallel (並列)
-t_parallel = timeit.timeit(
-    'nx_compute_rs.compute_metrics(10000000, 1.5, True)', 
-    setup='import nx_compute_rs', 
-    number=10
-)
-
-# 3. NumPy (ベクトル化)
-t_numpy = timeit.timeit(
-    'x = np.arange(10000000) * np.pi / 180.0 * 1.5; np.sum(np.sin(x) * np.cos(x))', 
-    setup='import numpy as np', 
-    number=10
-)
-
-print(f'Rust (Serial):   {t_serial/10*1000:.2f} ms')
-print(f'Rust (Parallel): {t_parallel/10*1000:.2f} ms')
-print(f'NumPy:           {t_numpy/10*1000:.2f} ms')
-"
-```
-
-### B. As a Web Application (For Demo/Sharing)
-
-You can run the same logic in the browser via WebAssembly.
-
-**Prerequisites:**
-* `wasm-pack` (`curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`)
-
-**Setup & Run:**
-```bash
-# 1. Build WASM blob
-wasm-pack build --target web --out-dir www/pkg --no-default-features --features wasm
-
-# 2. Serve locally (using Python's http server for simplicity)
-cd www
-python3 -m http.server 8000
-# Open http://localhost:8000
-```
-
-## 4. Technical Details
-
-### Feature Flags Strategy
-We use `Cargo.toml` features to minimize binary size and dependencies.
-* **`features = ["wasm"]`**: Includes `wasm-bindgen`. Generates `.wasm` binary. Panics happen in JS console.
-* **`features = ["python"]`**: Includes `pyo3`. Generates `.so/.pyd` shared library. Python exception handling enabled.
-
-### Performance Considerations
-* **Zero-Cost Abstraction:** Rust's iterators and logic compile down to optimized machine code (simd instructions where applicable) for Python, and optimized bytecode for WASM.
-* **Memory Safety:** No manual memory management (malloc/free) required, preventing segfaults in Python extensions.
-* **GIL (Global Interpreter Lock):** The Rust code runs outside Python's GIL. For multi-threaded logic, Rust can utilize all CPU cores while Python is blocked, offering true parallelism.
-
-## 5. Deployment
-
-This repository uses **GitHub Actions** to automatically deploy the Web version.
-1.  Push to `main`.
-2.  Action triggers: Compiles Rust to WASM.
-3.  Deploys `www/` folder to **GitHub Pages**.
-
-## 6. Future Roadmap
-
-* **GPU Acceleration:** Integrate `wgpu` for portable GPU compute shaders (WebGPU + Vulkan/Metal).
-* **Serialization:** Add `serde` support to pass complex JSON/Structs between JS/Python and Rust.
-* **Sim2Real:** Port the Python bindings directly to a ROS2 node.
-
----
-*Author: Funmatu*
+* The Rust solver utilizes `u64` to prevent integer overflow (standard `u32` is insufficient for ).
+* The algorithm is single-threaded DFS. For extreme values (), a multi-threaded approach (using `rayon` to split the first level of recursion) would be required, but strictly sequential DFS is implemented here for maximum portability (WASM compatibility).
