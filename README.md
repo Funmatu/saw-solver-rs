@@ -1,5 +1,6 @@
 # SAW Solver RS: High-Performance Self-Avoiding Walk Solver
 
+![Build Status](https://github.com/Funmatu/saw-solver-rs/actions/workflows/deploy.yml/badge.svg)
 ![Rust](https://img.shields.io/badge/Language-Rust-orange.svg)
 ![Platform](https://img.shields.io/badge/Platform-WASM%20%7C%20Python-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
